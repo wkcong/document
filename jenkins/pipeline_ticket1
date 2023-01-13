@@ -1,0 +1,41 @@
+pipeline{
+    agent any
+    parameters {
+        string(name: 'branch', defaultValue: '', description: '目标分支')
+        string(name: 'http_url', defaultValue: '', description: '仓库地址')
+        string(name: 'repo_name', defaultValue: '', description: '仓库名')
+    }
+    triggers {
+        GenericTrigger(
+                genericVariables: [
+                        [key: 'branch', value: '$.object_attributes.target_branch'],
+                        [key: 'http_url', value: '$.project.git_http_url'],
+                        [key: 'repo_name', value: '$.project.name'],
+                        [key: 'state', value: '$.object_attributes.state']
+                ],
+                token: 'gitlab',
+                printContributedVariables: true,
+                printPostContent: true,
+                silentResponse: false,
+                regexpFilterText: '$state',
+                regexpFilterExpression: "closed"
+        )
+    }
+
+    stages{
+        stage("test"){
+            steps{
+                script{
+                    if(branch ==~ /^v2.0.0/){
+                        git branch: '${branch}', credentialsId: 'aaf921f1-3184-4f7a-b993-8f092e443981', url: '${http_url}'
+                        sh "cd ${repo_name} && mvn clean package"
+                        sh "mkdir -p /home/ftp/pub/${branch}"
+                        sh "cp /var/lib/jenkins/workspace/ta-api/target/ta-api.jar /home/ftp/pub/${branch}"
+                        sh "chown -R devops:root /home/ftp/pub/origin"
+                    }
+                }
+            }
+            
+        }
+    }
+}
